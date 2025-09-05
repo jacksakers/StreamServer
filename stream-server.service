@@ -1,0 +1,17 @@
+[Unit]
+Description=RTSP to HLS Stream Server
+After=network.target
+
+[Service]
+
+User=jackberry
+Group=jackberry
+
+WorkingDirectory=/home/jackberry/usbdrv/StreamServer
+
+ExecStart=/usr/bin/python3 /home/jackberry/usbdrv/StreamServer/app.py
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

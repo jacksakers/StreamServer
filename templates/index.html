@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RTSP Security Streams</title>
+<style>
+body {
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+background-color: #121212;
+color: #e0e0e0;
+margin: 0;
+padding: 20px;
+}
+h1 {
+text-align: center;
+color: #ffffff;
+margin-bottom: 30px;
+}
+.stream-container {
+display: flex;
+flex-wrap: wrap;
+justify-content: center;
+gap: 30px;
+}
+.stream-card {
+background-color: #1e1e1e;
+border-radius: 12px;
+box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+overflow: hidden;
+width: 100%;
+max-width: 640px;
+border: 1px solid #333;
+}
+.stream-card h2 {
+margin: 0;
+padding: 15px 20px;
+background-color: #2a2a2a;
+font-size: 1.2em;
+text-transform: capitalize;
+border-bottom: 1px solid #333;
+}
+video {
+width: 100%;
+height: auto;
+background-color: #000;
+}
+</style>
+<!-- HLS.js library for playing HLS streams in the browser -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+</head>
+<body>
+
+<h1>Live Security Camera Feeds</h1>
+
+<div class="stream-container">
+    <!-- The server will dynamically generate a stream card for each camera -->
+    {% for name in stream_names %}
+    <div class="stream-card">
+        <h2>{{ name }}</h2>
+        <video id="video-{{ name }}" controls autoplay muted playsinline></video>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Get the list of stream names from the template
+        const streams = {{ stream_names|tojson }};
+
+        streams.forEach(streamName => {
+            const video = document.getElementById(`video-${streamName}`);
+            const videoSrc = `/streams/${streamName}/stream.m3u8`;
+
+            if (Hls.isSupported()) {
+                const hls = new Hls({
+                    // Configuration to help with low latency
+                    maxBufferLength: 30,
+                    maxMaxBufferLength: 60,
+                    liveSyncDurationCount: 3,
+                    fragLoadingMaxRetry: 6
+                });
+                hls.loadSource(videoSrc);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                    video.play().catch(error => console.log(`Autoplay failed for ${streamName}:`, error));
+                });
+                // Add error handling
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    if (data.fatal) {
+                        switch(data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                console.error('Fatal network error encountered, trying to recover...');
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                console.error('Fatal media error encountered, trying to recover...');
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                console.error('An unrecoverable error occurred. Destroying HLS instance.');
+                                hls.destroy();
+                                break;
+                        }
+                    }
+                });
+
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS support (e.g., on Safari)
+                video.src = videoSrc;
+                video.addEventListener('loadedmetadata', function () {
+                    video.play().catch(error => console.log(`Autoplay failed for ${streamName}:`, error));
+                });
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
